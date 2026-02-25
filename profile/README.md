@@ -1,8 +1,8 @@
 # Mark Danielson
 
-Software engineering director who stays hands-on. I design systems, define architecture, and build working software — increasingly partnering with agentic AI to move from design to production faster.
+Software engineering director who stays hands-on. I design systems, define architecture, and write code. Over the past year I've shifted to using agentic AI for most of the actual code authoring.
 
-I use this GitHub organization to manage personal projects spanning developer tooling, financial technology, and full-stack web applications.
+I use this GitHub organization to manage personal projects in developer tooling, financial technology, and full-stack web applications.
 
 ## Stack
 
@@ -22,9 +22,9 @@ I use this GitHub organization to manage personal projects spanning developer to
 
 ## Featured Projects
 
-**[wkd-proxy-worker](https://github.com/MNPPI/wkd-proxy-worker)** — A Cloudflare Worker that proxies OpenPGP Web Key Directory (WKD) requests to Proton Mail for custom domains. If you use Proton Mail with your own domain and want seamless PGP key discovery, this solves that problem.
+**[wkd-proxy-worker](https://github.com/MNPPI/wkd-proxy-worker)** - Cloudflare Worker that proxies OpenPGP Web Key Directory (WKD) requests to Proton Mail for custom domains. If you use Proton Mail with your own domain and want PGP key discovery to just work, this handles it.
 
-**[AdventureWorks Sales CRM](https://demo-crm.markdanielson.net)** — A full-stack edge CRM built entirely on Cloudflare's native platform: Workers, D1, Hono, tRPC, React, and Drizzle ORM. A working demonstration of how to build production-grade applications at the edge without traditional server infrastructure.
+**[AdventureWorks Sales CRM](https://demo-crm.markdanielson.net)** - Full-stack edge CRM built on Cloudflare's native platform: Workers, D1, Hono, tRPC, React, and Drizzle ORM. Shows how to build a real application at the edge with no traditional server infrastructure. Fully API-driven with [Scalar Documentation](https://demo-crm.markdanielson.net/docs).
 
 ## Connect
 
