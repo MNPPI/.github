@@ -1,8 +1,6 @@
 # Mark Danielson
 
-Software engineering director who stays hands-on. I design systems, define architecture, and write code. Over the past year I've shifted to using agentic AI for most of the actual code authoring.
-
-I use this GitHub organization to manage personal projects in developer tooling, financial technology, and full-stack web applications.
+I design systems, define architecture, and write code. Over the past year I've shifted to using agentic AI for most of the actual coding. My projects focus on developer tooling, financial technology, and full-stack web applications, all running on the Cloudflare edge.
 
 ## Stack
 
