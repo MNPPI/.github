@@ -22,9 +22,9 @@ I use this GitHub organization to manage personal projects in developer tooling,
 
 ## Featured Projects
 
-**[wkd-proxy-worker](https://github.com/MNPPI/wkd-proxy-worker)** - Cloudflare Worker that proxies OpenPGP Web Key Directory (WKD) requests to Proton Mail for custom domains. If you use Proton Mail with your own domain and want PGP key discovery to just work, this handles it.
+**[wkd-proxy-worker](https://github.com/MNPPI/wkd-proxy-worker)** - I built this Cloudflare Worker that proxies OpenPGP Web Key Directory requests to Proton Mail for custom domains. It makes PGP key discovery just work for your own domain. It runs on a free Cloudflare Worker instance — try it today!
 
-**[AdventureWorks Sales CRM](https://demo-crm.markdanielson.net)** - Full-stack edge CRM built on Cloudflare's native platform: Workers, D1, Hono, tRPC, React, and Drizzle ORM. Shows how to build a real application at the edge with no traditional server infrastructure. Fully API-driven with [Scalar Documentation](https://demo-crm.markdanielson.net/docs).
+**[AdventureWorks Sales CRM](https://demo-crm.markdanielson.net)** - I built this proof-of-concept full-stack edge CRM on Cloudflare Workers, D1, Hono, tRPC, React, and Drizzle ORM. It's a real application running entirely at the edge with no traditional server infrastructure. Check out the [Scalar Documentation](https://demo-crm.markdanielson.net/docs) — it's fully API-driven and REST Level 3 HATEOAS compliant.
 
 ## Connect
 
