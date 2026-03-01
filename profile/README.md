@@ -1,6 +1,8 @@
 # Mark Danielson
 
-I design systems, define architecture, and write code. Over the past year I've shifted to using agentic AI for most of the actual coding. My projects focus on developer tooling, financial technology, and full-stack web applications, all running on the Cloudflare edge.
+I design systems, define architecture, and write code. Over the past year I've shifted to using agentic AI for most of my actual development work while leading high-performing teams in Azure-based enterprise environments.
+
+On my own time I love building personal projects on the Cloudflare edge: full-stack apps, developer tooling, and financial analysis tools that run with zero traditional servers. These are the experiments that keep me sharp and excited about what's next.
 
 ## Stack
 
