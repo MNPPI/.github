@@ -4,19 +4,19 @@ I design systems, define architecture, and write code. Over the past year I've s
 
 ## Stack
 
-| Layer           | Technology                                              |
-| --------------- | ------------------------------------------------------- |
-| Languages       | TypeScript (strict mode), Python                        |
-| Package Manager | pnpm                                                    |
-| Runtime         | Cloudflare Workers + Static Assets                      |
-| Backend         | Hono (type-safe routes and middleware)                  |
-| Database        | Cloudflare D1 + Drizzle ORM                             |
-| Storage         | R2 (objects), KV (sessions/config), Queues (async jobs) |
-| Auth            | Cloudflare Zero Trust Access, Better Auth               |
-| Frontend        | React, Tailwind CSS, Zustand, TanStack Query            |
-| Testing         | Vitest with Cloudflare Workers pool                     |
-| CI/CD           | GitHub Actions (build in GitHub, deploy to Cloudflare)  |
-| Observability   | Workers Logs, Traces, Logpush                           |
+| Layer           | Technology                                                     |
+| --------------- | -------------------------------------------------------------- |
+| Languages       | TypeScript (strict mode), Python                               |
+| Package Manager | pnpm                                                           |
+| Runtime         | Cloudflare Workers + Static Assets                             |
+| Backend         | Hono (type-safe routes and middleware)                         |
+| Database        | Cloudflare D1 + Drizzle ORM                                    |
+| Storage         | R2 (objects), KV (sessions/config), Queues (async jobs)        |
+| Auth            | Cloudflare Zero Trust Access, Better Auth                      |
+| Frontend        | React, Astro, Starlight, Tailwind CSS, Zustand, TanStack Query |
+| Testing         | Vitest with Cloudflare Workers pool                            |
+| CI/CD           | GitHub Actions (build in GitHub, deploy to Cloudflare)         |
+| Observability   | Workers Logs, Traces, Logpush                                  |
 
 ## Featured Projects
 
