@@ -18,3 +18,5 @@ Desktop.ini
 # Claude Code
 CLAUDE.md
 .claude/
+.repomix/
+repomix-output.*
