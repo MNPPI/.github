@@ -29,3 +29,7 @@ On my own time I love building personal projects on the Cloudflare edge: full-st
 ## Connect
 
 [LinkedIn](https://www.linkedin.com/in/mdanielson)
+
+## Public Pull Request Checks
+
+GitHub runs the required public plain-language check for each pull request. The check uses a hosted runner and no MNPPI package token.
