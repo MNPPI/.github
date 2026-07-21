@@ -1,0 +1,42 @@
+name: Plain Language
+
+on:
+  pull_request:
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plain-language-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plain-language:
+    runs-on:
+      group: MNPPI General VPS
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 22
+
+      - name: Check changed text
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          NPM_CONFIG_USERCONFIG: /dev/null
+        run: |
+          args=(audit --enforce-plain-language)
+          if [[ -n "${BASE_SHA}" ]] &&
+             [[ ! "${BASE_SHA}" =~ ^0+$ ]] &&
+             git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            args+=(--changed-since "${BASE_SHA}")
+          fi
+          env -u NODE_AUTH_TOKEN -u NPM_TOKEN -u GITHUB_TOKEN \
+            npm exec --yes \
+            --package=https://mnppi-package-registry.mnppi.workers.dev/quality/0.4.3/mnppi-quality-0.4.3.tgz -- \
+            mnppi-quality "${args[@]}"
