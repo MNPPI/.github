@@ -177,6 +177,7 @@ jobs:
             --download-offline-databases \
             --no-resolve \
             --allow-no-lockfiles \
+            --experimental-disable-plugins python/requirements \
             --format json \
             --output-file .quality/osv-scanner.json \
             --verbosity error \
