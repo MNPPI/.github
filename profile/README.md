@@ -32,4 +32,6 @@ On my own time I love building personal projects on the Cloudflare edge: full-st
 
 ## Public Pull Request Checks
 
-GitHub runs the required public plain-language check for each pull request. The check uses a hosted runner and no MNPPI package token.
+GitHub runs required security and plain-language checks for each public pull request.
+These checks use free standard GitHub-hosted runners.
+They do not use private MNPPI packages, registries, reusable workflows, or package credentials.

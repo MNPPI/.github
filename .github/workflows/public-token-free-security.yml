@@ -28,6 +28,228 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Enforce public repository boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          root = Path(".")
+          allowed_runners = {
+              "ubuntu-slim",
+              "ubuntu-latest",
+              "ubuntu-22.04",
+              "ubuntu-24.04",
+              "ubuntu-26.04",
+              "ubuntu-22.04-arm",
+              "ubuntu-24.04-arm",
+              "ubuntu-26.04-arm",
+              "windows-latest",
+              "windows-2022",
+              "windows-2025",
+              "windows-2025-vs2026",
+              "windows-11-arm",
+              "windows-11-vs2026-arm",
+              "macos-latest",
+              "macos-14",
+              "macos-15",
+              "macos-15-intel",
+              "macos-26",
+              "macos-26-intel",
+          }
+          ignored_parts = {
+              ".git",
+              ".quality",
+              ".venv",
+              "coverage",
+              "dist",
+              "node_modules",
+              "vendor",
+          }
+          package_secret_names = {
+              "GHCR_TOKEN",
+              "GITHUB_PACKAGES_TOKEN",
+              "NODE_AUTH_TOKEN",
+              "NPM_AUTH_TOKEN",
+              "NPM_TOKEN",
+              "PACKAGE_TOKEN",
+              "PACKAGES_TOKEN",
+          }
+          dependency_file_names = {
+              "cargo.lock",
+              "cargo.toml",
+              "composer.json",
+              "composer.lock",
+              "go.mod",
+              "go.sum",
+              "package-lock.json",
+              "package.json",
+              "pnpm-lock.yaml",
+              "pnpm-workspace.yaml",
+              "poetry.lock",
+              "pyproject.toml",
+              "uv.lock",
+              "yarn.lock",
+          }
+          expression_start = "$" + "{{"
+          errors = []
+
+          def add_error(path: Path, text: str, position: int, message: str) -> None:
+              line = text.count("\n", 0, position) + 1
+              errors.append(f"{path.as_posix()}:{line}: {message}")
+
+          def read_text_files():
+              for path in sorted(root.rglob("*")):
+                  if not path.is_file() or ignored_parts.intersection(path.parts):
+                      continue
+                  if path.stat().st_size > 2_000_000:
+                      continue
+                  try:
+                      yield path, path.read_text(encoding="utf-8")
+                  except UnicodeDecodeError:
+                      continue
+
+          def is_dependency_file(path: Path) -> bool:
+              name = path.name.lower()
+              return (
+                  name in dependency_file_names
+                  or name.startswith(("dockerfile", "gemfile", "pipfile", "requirements"))
+                  or name.endswith((".gradle", ".gradle.kts"))
+              )
+
+          files = list(read_text_files())
+          workflows = [
+              (path, text)
+              for path, text in files
+              if path.parent.as_posix().endswith(".github/workflows")
+              and path.suffix.lower() in {".yaml", ".yml"}
+          ]
+
+          runner_pattern = re.compile(
+              r"^\s*['\"]?runs-on['\"]?\s*:\s*(.*?)\s*(?:#.*)?$",
+              re.MULTILINE,
+          )
+          event_pattern = re.compile(
+              r"^\s*['\"]?pull_request_target['\"]?\s*:", re.MULTILINE
+          )
+          uses_pattern = re.compile(
+              r"^\s*-?\s*['\"]?uses['\"]?\s*:\s*['\"]?([^\s#'\"]+)",
+              re.MULTILINE,
+          )
+          secret_pattern = re.compile(
+              r"\$\{\{\s*secrets\.([A-Za-z0-9_]+)", re.IGNORECASE
+          )
+          auth_env_pattern = re.compile(
+              r"^\s*(NODE_AUTH_TOKEN|NPM_AUTH_TOKEN|NPM_TOKEN|PACKAGES?_TOKEN)"
+              r"\s*:\s*([^#\r\n]*)",
+              re.IGNORECASE | re.MULTILINE,
+          )
+
+          for path, text in workflows:
+              for match in runner_pattern.finditer(text):
+                  value = match.group(1).strip()
+                  if not value or expression_start in value:
+                      add_error(
+                          path,
+                          text,
+                          match.start(),
+                          "runner selection must use an explicit standard GitHub-hosted label",
+                      )
+                      continue
+
+                  if value.startswith("[") and value.endswith("]"):
+                      labels = [item.strip(" '\"") for item in value[1:-1].split(",")]
+                  else:
+                      labels = [value.strip(" '\"")]
+
+                  invalid = [label for label in labels if label not in allowed_runners]
+                  if invalid:
+                      add_error(
+                          path,
+                          text,
+                          match.start(),
+                          "runner label is not a free standard GitHub-hosted label: "
+                          + ", ".join(invalid),
+                      )
+
+              for match in event_pattern.finditer(text):
+                  add_error(
+                      path,
+                      text,
+                      match.start(),
+                      "pull_request_target is not allowed for public repository checks",
+                  )
+
+              for match in uses_pattern.finditer(text):
+                  target = match.group(1)
+                  if target.casefold().startswith("mnppi/"):
+                      add_error(
+                          path,
+                          text,
+                          match.start(),
+                          "MNPPI actions and reusable workflows are not allowed",
+                      )
+
+              for match in secret_pattern.finditer(text):
+                  name = match.group(1).upper()
+                  if "PACKAGE" in name or name in package_secret_names:
+                      add_error(
+                          path,
+                          text,
+                          match.start(),
+                          f"package credential secret is not allowed: {name}",
+                      )
+
+              for match in auth_env_pattern.finditer(text):
+                  value = match.group(2).strip().strip("'\"")
+                  if value:
+                      add_error(
+                          path,
+                          text,
+                          match.start(),
+                          f"package credential environment variable must stay unset: {match.group(1)}",
+                      )
+
+          private_scope = "@" + "mnppi" + "/"
+          npm_registry = "npm" + ".pkg." + "github.com"
+          container_registry = "ghcr" + ".io/" + "mnppi"
+          mnppi_git = re.compile(r"github\.com[/:]mnppi/", re.IGNORECASE)
+
+          for path, text in files:
+              folded = text.casefold()
+              for value, message in (
+                  (private_scope, "private MNPPI package scope is not allowed"),
+                  (npm_registry, "GitHub npm registry is not allowed"),
+                  (container_registry, "MNPPI container registry is not allowed"),
+              ):
+                  position = folded.find(value)
+                  if position >= 0:
+                      add_error(path, text, position, message)
+
+              if is_dependency_file(path) or any(path == workflow[0] for workflow in workflows):
+                  match = mnppi_git.search(text)
+                  if match:
+                      add_error(
+                          path,
+                          text,
+                          match.start(),
+                          "MNPPI Git dependency is not allowed",
+                      )
+
+          if errors:
+              print("Public repository boundary violations:", file=sys.stderr)
+              for error in errors:
+                  print(f"- {error}", file=sys.stderr)
+              raise SystemExit(1)
+
+          print(
+              f"Public repository boundary passed for {len(workflows)} workflow file(s)."
+          )
+          PY
+
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
