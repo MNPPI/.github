@@ -85,7 +85,7 @@ jobs:
           cache-dependency-glob: uv.lock
 
       - name: Install locked dependencies
-        run: uv sync --all-extras --frozen --no-default-groups
+        run: uv sync --extra dev --frozen --no-default-groups
 
       - name: Check format
         run: uv run --frozen black --check --diff src tests
