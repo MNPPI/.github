@@ -139,6 +139,11 @@ jobs:
               r"^\s*-?\s*['\"]?uses['\"]?\s*:\s*['\"]?([^\s#'\"]+)",
               re.MULTILINE,
           )
+          public_quality_pattern = re.compile(
+              r"MNPPI/\.github/\.github/workflows/"
+              r"public-quality\.yml@[0-9a-f]{40}",
+              re.IGNORECASE,
+          )
           secret_pattern = re.compile(
               r"\$\{\{\s*secrets\.([A-Za-z0-9_]+)", re.IGNORECASE
           )
@@ -185,12 +190,17 @@ jobs:
 
               for match in uses_pattern.finditer(text):
                   target = match.group(1)
-                  if target.casefold().startswith("mnppi/"):
+                  if (
+                      target.casefold().startswith("mnppi/")
+                      and not public_quality_pattern.fullmatch(target)
+                  ):
                       add_error(
                           path,
                           text,
                           match.start(),
-                          "MNPPI actions and reusable workflows are not allowed",
+                          "MNPPI actions and reusable workflows are not allowed "
+                          "unless they call the approved public quality workflow "
+                          "at a full commit SHA",
                       )
 
               for match in secret_pattern.finditer(text):
