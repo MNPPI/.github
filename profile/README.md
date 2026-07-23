@@ -4,21 +4,28 @@ I design systems, define architecture, and write code. Over the past year I've s
 
 On my own time I love building personal projects on the Cloudflare edge: full-stack apps, developer tooling, and financial analysis tools that run with zero traditional servers. These are the experiments that keep me sharp and excited about what's next.
 
+## Reference Architecture
+
+MNPPI maintains current stack standards, delivery controls, and adoption guidance at [architecture.mnppi.org](https://architecture.mnppi.org/).
+
+GitHub Actions validates changes, and GitHub rulesets authorize merges.
+Cloudflare Workers Builds owns normal production builds and deployments.
+
 ## Stack
 
-| Layer           | Technology                                                     |
-| --------------- | -------------------------------------------------------------- |
-| Languages       | TypeScript (strict mode), Python                               |
-| Package Manager | pnpm                                                           |
-| Runtime         | Cloudflare Workers + Static Assets                             |
-| Backend         | Hono (type-safe routes and middleware)                         |
-| Database        | Cloudflare D1 + Drizzle ORM                                    |
-| Storage         | R2 (objects), KV (sessions/config), Queues (async jobs)        |
-| Auth            | Cloudflare Zero Trust Access, Better Auth                      |
-| Frontend        | React, Astro, Starlight, Tailwind CSS, Zustand, TanStack Query |
-| Testing         | Vitest with Cloudflare Workers pool                            |
-| CI/CD           | GitHub Actions (build in GitHub, deploy to Cloudflare)         |
-| Observability   | Workers Logs, Traces, Logpush                                  |
+| Layer                | Technology                                                              |
+| -------------------- | ----------------------------------------------------------------------- |
+| Languages            | TypeScript (strict mode), Python                                        |
+| Package Manager      | pnpm                                                                    |
+| Runtime              | Cloudflare Workers with Static Assets                                   |
+| Applications         | Astro for static sites; React with Vite for interactive applications    |
+| APIs                 | Hono with Zod validation                                                |
+| Data                 | Cloudflare D1 with Drizzle ORM; R2 and other managed services as needed |
+| Authentication       | Cloudflare Access for staff; magic links or Better Auth for public apps |
+| Testing              | Vitest with the Cloudflare Workers pool                                 |
+| Merge Authority      | GitHub Actions and GitHub rulesets                                      |
+| Build and Deployment | Cloudflare Workers Builds                                               |
+| Observability        | Workers Logs, release metadata, runtime measures, and approved pilots   |
 
 ## Featured Projects
 
