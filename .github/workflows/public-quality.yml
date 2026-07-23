@@ -1,0 +1,195 @@
+name: Public Quality
+
+on:
+  workflow_call:
+    inputs:
+      profile:
+        description: Public repository quality profile
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  typescript:
+    name: TypeScript
+    if: inputs.profile == 'typescript'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install public dependencies
+        run: >-
+          env
+          -u GITHUB_TOKEN
+          -u NODE_AUTH_TOKEN
+          -u NPM_AUTH_TOKEN
+          -u NPM_TOKEN
+          -u PACKAGE_TOKEN
+          -u PACKAGES_TOKEN
+          pnpm install --frozen-lockfile
+
+      - name: Check format
+        run: pnpm run format:check
+
+      - name: Check types
+        run: pnpm run typecheck
+
+      - name: Check lint
+        run: pnpm run lint
+
+      - name: Run tests with coverage
+        run: pnpm run coverage
+
+      - name: Check unused files and dependencies
+        run: pnpm run knip
+
+  python:
+    name: Python ${{ matrix.python-version }}
+    if: inputs.profile == 'python'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --all-extras --frozen --no-default-groups
+
+      - name: Check format
+        run: uv run --frozen black --check --diff src tests
+
+      - name: Check lint
+        run: >-
+          uv run --frozen flake8 src tests
+          --count
+          --max-complexity=10
+          --max-line-length=88
+          --statistics
+
+      - name: Check types
+        run: uv run --frozen mypy
+
+      - name: Check Python security
+        run: uv run --frozen bandit -r src
+
+      - name: Run tests with coverage
+        run: >-
+          uv run --frozen pytest
+          --cov
+          --cov-branch
+          --cov-fail-under=80
+          --cov-report=term-missing
+          --junitxml=junit.xml
+          -o junit_family=legacy
+
+  metadata:
+    name: Metadata
+    if: inputs.profile == 'metadata'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install workflow security tool
+        run: python -m pip install "zizmor==1.26.1"
+
+      - name: Check workflow syntax
+        run: npx --yes github-actionlint@1.7.12 -shellcheck ""
+
+      - name: Check workflow security
+        run: >-
+          zizmor
+          --min-severity=medium
+          --min-confidence=medium
+          .github/workflows
+
+      - name: Check format
+        run: npx --yes prettier@3.9.4 --check .
+
+      - name: Build repository context
+        run: npx --yes repomix@1.16.0
+
+  result:
+    name: Quality
+    if: always()
+    needs: [typescript, python, metadata]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      METADATA_RESULT: ${{ needs.metadata.result }}
+      PROFILE: ${{ inputs.profile }}
+      PYTHON_RESULT: ${{ needs.python.result }}
+      TYPESCRIPT_RESULT: ${{ needs.typescript.result }}
+    steps:
+      - name: Validate selected profile
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "${PROFILE}" in
+            typescript)
+              selected_result="${TYPESCRIPT_RESULT}"
+              ;;
+            python)
+              selected_result="${PYTHON_RESULT}"
+              ;;
+            metadata)
+              selected_result="${METADATA_RESULT}"
+              ;;
+            *)
+              echo "::error::Unknown public quality profile: ${PROFILE}"
+              exit 1
+              ;;
+          esac
+
+          if [[ "${selected_result}" != "success" ]]; then
+            echo "::error::The ${PROFILE} quality profile ended with ${selected_result}."
+            exit 1
+          fi
+
+          echo "The ${PROFILE} quality profile passed."

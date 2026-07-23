@@ -5,6 +5,7 @@ on:
     branches: [main]
   push:
     branches: [main]
+  merge_group:
   workflow_dispatch:
 
 permissions:
@@ -12,29 +13,7 @@ permissions:
 
 jobs:
   quality:
-    name: Quality
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 22
-
-      - name: Install zizmor
-        run: python -m pip install "zizmor==1.26.1"
-
-      - name: actionlint
-        run: npx --yes github-actionlint@1.7.12 -shellcheck ""
-
-      - name: zizmor
-        run: zizmor --min-severity=medium --min-confidence=medium .github/workflows
-
-      - name: Repomix context pack
-        run: npx --yes repomix@1.16.0
-
-      - name: Format check
-        run: npx --yes prettier@3.9.4 --check .
+    name: Public Quality
+    uses: ./.github/workflows/public-quality.yml
+    with:
+      profile: metadata
