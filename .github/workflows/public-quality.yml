@@ -58,15 +58,159 @@ jobs:
       - name: Check unused files and dependencies
         run: pnpm run knip
 
+  python-versions:
+    name: Python versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      versions: ${{ steps.resolve.outputs.versions || '["3.10","3.11","3.12","3.13"]' }}
+    steps:
+      - name: Checkout
+        if: inputs.profile == 'python'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python for version selection
+        if: inputs.profile == 'python'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+
+      - name: Install Python specifier tool
+        if: inputs.profile == 'python'
+        run: python -m pip install "packaging==26.3"
+
+      - name: Resolve requires-python
+        id: resolve
+        if: inputs.profile == 'python'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import sys
+          import tomllib
+          from pathlib import Path
+
+          from packaging.specifiers import InvalidSpecifier, SpecifierSet
+          from packaging.version import Version
+
+          CANDIDATES = ("3.10", "3.11", "3.12", "3.13")
+
+
+          def candidate_patches(specifier: SpecifierSet) -> list[int]:
+              patches = set(range(65))
+              for clause in specifier:
+                  for token in re.findall(r"\d+", clause.version):
+                      number = int(token)
+                      patches.add(number)
+                      patches.add(number + 1)
+              return sorted(patches)
+
+
+          def series_matches(specifier: SpecifierSet, version: str) -> bool:
+              major_text, minor_text = version.split(".")
+              major = int(major_text)
+              minor = int(minor_text)
+              for patch in candidate_patches(specifier):
+                  candidate = Version(f"{major}.{minor}.{patch}")
+                  if specifier.contains(candidate, prereleases=False):
+                      return True
+              return False
+
+
+          def select_versions(requires_python: str | None) -> list[str]:
+              if requires_python is None or requires_python.strip() == "":
+                  return list(CANDIDATES)
+              try:
+                  specifier = SpecifierSet(requires_python)
+              except InvalidSpecifier as error:
+                  raise ValueError(
+                      f"requires-python {requires_python!r} is invalid: {error}"
+                  ) from error
+              chosen = [
+                  version for version in CANDIDATES if series_matches(specifier, version)
+              ]
+              if not chosen:
+                  readable = ", ".join(CANDIDATES)
+                  raise ValueError(
+                      "requires-python "
+                      f"{requires_python!r} excludes every Python version this workflow "
+                      f"tests: {readable}"
+                  )
+              return chosen
+
+
+          def read_requires_python(path: Path) -> str | None:
+              try:
+                  text = path.read_text(encoding="utf-8")
+              except FileNotFoundError:
+                  raise ValueError(
+                      "pyproject.toml is missing, so requires-python cannot be read"
+                  ) from None
+              try:
+                  data = tomllib.loads(text)
+              except tomllib.TOMLDecodeError as error:
+                  raise ValueError(f"pyproject.toml is not valid TOML: {error}") from error
+              project = data.get("project")
+              if not isinstance(project, dict) or "requires-python" not in project:
+                  return None
+              requires = project["requires-python"]
+              if requires is None:
+                  return None
+              if not isinstance(requires, str):
+                  raise ValueError("project.requires-python must be a string")
+              return requires
+
+
+          def main() -> None:
+              try:
+                  requires = read_requires_python(Path("pyproject.toml"))
+                  versions = select_versions(requires)
+              except ValueError as error:
+                  print(f"::error::{error}", file=sys.stderr)
+                  sys.exit(1)
+
+              if requires is None or requires.strip() == "":
+                  print(
+                      "requires-python is not set. Python versions: " + ", ".join(versions)
+                  )
+              else:
+                  print(f"requires-python: {requires}")
+                  print("Python versions: " + ", ".join(versions))
+                  skipped = [version for version in CANDIDATES if version not in versions]
+                  if skipped:
+                      names = ", ".join(f"Python {version}" for version in skipped)
+                      pronoun = "it" if len(skipped) == 1 else "them"
+                      print(f"Skipping {names} because requires-python excludes {pronoun}.")
+
+              line = "versions=" + json.dumps(versions, separators=(",", ":"))
+              print(line)
+              output = os.environ.get("GITHUB_OUTPUT")
+              if output:
+                  with open(output, "a", encoding="utf-8") as handle:
+                      handle.write(line + "\n")
+
+
+          if __name__ == "__main__":
+              main()
+          PY
+
   python:
     name: Python ${{ matrix.python-version }}
-    if: inputs.profile == 'python'
+    needs: python-versions
+    if: inputs.profile == 'python' && needs.python-versions.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        # Non-python profiles still expand 3.10-3.13 so those skipped check
+        # names stay stable. The fallback applies only when selection did not run.
+        python-version: ${{ fromJson(needs.python-versions.outputs.versions || '["3.10","3.11","3.12","3.13"]') }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -74,39 +218,91 @@ jobs:
           persist-credentials: false
 
       - name: Set up Python
+        id: python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Require the selected interpreter
+        env:
+          PYTHON_PATH: ${{ steps.python.outputs.python-path }}
+          PYTHON_VERSION: ${{ matrix.python-version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${PYTHON_PATH}" || ! -x "${PYTHON_PATH}" ]]; then
+            echo "::error::setup-python did not provide an executable for Python ${PYTHON_VERSION}"
+            exit 1
+          fi
+          got="$("${PYTHON_PATH}" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+          if [[ "${got}" != "${PYTHON_VERSION}" ]]; then
+            echo "::error::setup-python provided Python ${got} at ${PYTHON_PATH} instead of ${PYTHON_VERSION}"
+            exit 1
+          fi
+          echo "Matrix interpreter: ${PYTHON_PATH} (Python ${got})"
+
       - name: Set up uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
 
       - name: Install locked dependencies
-        run: uv sync --extra dev --frozen --no-default-groups
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: uv sync --python "$UV_PYTHON" --extra dev --frozen --no-default-groups
+
+      - name: Require the project environment interpreter
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$("$UV_PYTHON" -c 'import sys; print(sys.version)')"
+          actual="$(uv run --python "$UV_PYTHON" --frozen python -c 'import sys; print(sys.version)')"
+          prefix="$(uv run --python "$UV_PYTHON" --frozen python -c 'import sys; print(sys.prefix)')"
+          if [[ "${actual}" != "${expected}" ]]; then
+            echo "::error::The project environment uses Python '${actual}', not the matrix interpreter '${expected}' (${UV_PYTHON})."
+            exit 1
+          fi
+          if [[ "$(readlink -f "${prefix}")" != "$(readlink -f "${GITHUB_WORKSPACE}/.venv")" ]]; then
+            echo "::error::The project environment prefix is ${prefix}, not ${GITHUB_WORKSPACE}/.venv."
+            exit 1
+          fi
+          echo "Project environment matches ${UV_PYTHON}"
 
       - name: Check format
-        run: uv run --frozen black --check --diff src tests
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: uv run --python "$UV_PYTHON" --frozen black --check --diff src tests
 
       - name: Check lint
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
         run: >-
-          uv run --frozen flake8 src tests
+          uv run --python "$UV_PYTHON" --frozen flake8 src tests
           --count
           --max-complexity=10
           --max-line-length=88
           --statistics
 
       - name: Check types
-        run: uv run --frozen mypy
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: uv run --python "$UV_PYTHON" --frozen mypy
 
       - name: Check Python security
-        run: uv run --frozen bandit -r src
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: uv run --python "$UV_PYTHON" --frozen bandit -r src
 
       - name: Run tests with coverage
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
         run: >-
-          uv run --frozen pytest
+          uv run --python "$UV_PYTHON" --frozen pytest
           --cov
           --cov-branch
           --cov-fail-under=80
@@ -157,13 +353,14 @@ jobs:
   result:
     name: Quality
     if: always()
-    needs: [typescript, python, metadata]
+    needs: [typescript, python-versions, python, metadata]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       METADATA_RESULT: ${{ needs.metadata.result }}
       PROFILE: ${{ inputs.profile }}
       PYTHON_RESULT: ${{ needs.python.result }}
+      PYTHON_VERSIONS_RESULT: ${{ needs.python-versions.result }}
       TYPESCRIPT_RESULT: ${{ needs.typescript.result }}
     steps:
       - name: Validate selected profile
@@ -176,7 +373,11 @@ jobs:
               selected_result="${TYPESCRIPT_RESULT}"
               ;;
             python)
-              selected_result="${PYTHON_RESULT}"
+              if [[ "${PYTHON_VERSIONS_RESULT}" != "success" || "${PYTHON_RESULT}" != "success" ]]; then
+                echo "::error::The python quality profile ended with version selection ${PYTHON_VERSIONS_RESULT} and checks ${PYTHON_RESULT}."
+                exit 1
+              fi
+              selected_result="success"
               ;;
             metadata)
               selected_result="${METADATA_RESULT}"
